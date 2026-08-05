@@ -28,12 +28,14 @@ def health_status():
 #this endpoint returns all the tasks in the list
 @app.get("/tasks")
 def display_tasks():
+    """ Returns all the list of tasks """
     return tasks
 
 
 # GET method is used to retrieve a resource, in this case a task.
 @app.get("/tasks/{id}")
 def get_task_by_ID(id:int):
+    """ Returns a task by its ID """
     for task in tasks:
         if task["id"] == id:
             return task
@@ -46,11 +48,11 @@ def add_task(task: Task):
     if not task.title or not task.title.strip():
         raise HTTPException(status_code=400,
                              detail="Task title cannot be empty")
-
+    """Create a new task and add it to the list of tasks"""
     new_task = {
         "id": len(tasks) + 1,
         "title": task.title,
-        "done": False
+        "done": task.done
     }
     tasks.append(new_task)
     return new_task
@@ -59,12 +61,14 @@ def add_task(task: Task):
 #PUT method is used to update a resource, in this case a task.
 @app.put("/tasks/{id}")
 def update_task(id: int, task: Task):
+    """Update a task by its ID"""
     for t in tasks:
         if t["id"] == id:
             if not task.title or not task.title.strip():
                 raise HTTPException(status_code=400,
                                     detail="Task title is invalid or empty")
             t["title"] = task.title
+            t["done"] = task.done
             return t
     raise HTTPException(status_code=404, detail={"error" : f"Task {id} not found"})
 
@@ -74,6 +78,7 @@ def update_task(id: int, task: Task):
 
 @app.delete("/tasks/{id}", status_code=204)
 def delete_task(id: int):
+    """Delete a task by its ID"""
     for t in tasks:
         if t["id"] == id:
             tasks.remove(t)
