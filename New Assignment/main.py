@@ -10,6 +10,9 @@ tasks = [{"id" : 1, "title": "Task 1", "done" : False},
          {"id" : 2, "title": "Task 2", "done" : True},
          {"id" : 3, "title": "Task 3", "done" : False}]
 
+class Task(BaseModel):
+    title: str
+
 @app.get("/")
 def root():
     return {"name" : "Task API",
@@ -30,3 +33,17 @@ def get_task(id:int):
         if task["id"] == id:
             return task
     raise HTTPException(status_code=404, detail={"error" : f"Task {id} not found"})
+
+@app.post("/tasks", status_code=201)
+def add_task(task: Task):
+    if not task.title or not task.title.strip():
+        raise HTTPException(status_code=400,
+                             detail="Task title cannot be empty")
+
+    new_task = {
+        "id": len(tasks) + 1,
+        "title": task.title,
+        "done": False
+    }
+    tasks.append(new_task)
+    return new_task
