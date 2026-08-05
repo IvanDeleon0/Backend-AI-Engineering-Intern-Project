@@ -6,7 +6,13 @@ from datetime import datetime, timezone
 
 app = FastAPI(title="Task CRUD API")   
 
+
 @app.get("/")
-def hello():
-    return {"message": "Hello, World!",
-            "status_code": 200}
+def gets():
+    return {"name" : "Task API",
+            "version" : "1.0",
+            "endpoints" : ["/tasks"]
+            }
+@app.get("/health")
+def health_status():
+    return {"status" : "ok"}
