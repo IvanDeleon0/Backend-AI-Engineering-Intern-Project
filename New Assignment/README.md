@@ -1,4 +1,4 @@
-# 📚 BSIT Programming Assignments
+# 📚 Backend AI Engineering Intern Tasks
 
 This repository contains multiple programming assignments developed using **Python**, **FastAPI**, and **SQLite**.
 
