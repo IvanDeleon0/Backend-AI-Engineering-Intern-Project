@@ -67,7 +67,7 @@ python -m uvicorn main:app --reload
 > `The term 'uvicorn' is not recognized...`, use `python -m uvicorn main:app --reload`
 > instead — this runs uvicorn as a Python module and avoids PATH issues.
 
-The API runs at **http://localhost:8000**.
+The API runs at **http://localhost:8000** or **http://127.0.0.1:8000**.
 
 ## A1 Endpoints
 
