@@ -1,6 +1,6 @@
 # 📚 Backend AI Engineering Intern Tasks
 
-This repository contains multiple programming assignments developed using **Python**, **FastAPI**, and **SQLite**.
+This repository contains multiple programming assignments developed using **Python**, **FastAPI**, **SQLite** and **Postgres**.
 
 Since all project files are kept in a shared workspace, this README serves as the documentation and navigation page for each assignment.
 
