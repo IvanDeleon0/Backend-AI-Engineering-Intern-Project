@@ -589,7 +589,11 @@ docker exec -it backend-ai-engineering-intern-project-redis-1 redis-cli ping
 Returned `PONG` — confirming Redis itself is running and reachable inside
 the Docker network, independent of whether the app has any code that talks
 to it yet.
+
+`bash`
 ![redis](/redis.png)
+
+
 **What's intentionally left for later:** an actual Python Redis client
 (e.g. `redis-py`) is not yet installed or imported anywhere, and no route
 in `main.py` reads from or writes to Redis. That's deliberate — adding the
