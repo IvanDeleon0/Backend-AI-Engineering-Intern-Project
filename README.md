@@ -36,6 +36,17 @@ Since all project files are kept in a shared workspace, this README serves as th
   - [What Changed from Assignment 1](#a2-what-changed-from-assignment-1)
   - [Notes](#a2-notes)
 
+## Assignment 3
+- [Task CRUD API (FastAPI + Postgres in Docker)](#assignment-3--task-crud-api-fastapi--postgres-in-docker)
+  - [What This Assignment Is Actually About](#a3-what-this-assignment-is-actually-about)
+  - [The Building Blocks, Explained Plainly](#a3-the-building-blocks-explained-plainly)
+  - [What Actually Happened, Step by Step](#a3-what-actually-happened-step-by-step)
+  - [Running Everything, One Command](#a3-running-everything-one-command)
+  - [What Changed, and What Genuinely Didn't](#a3-what-changed-and-what-genuinely-didnt)
+  - [Proving Persistence — the Full Checklist](#a3-proving-persistence--the-full-checklist)
+  - [Confirming It Visually, Not Just From the Command Line](#a3-confirming-it-visually-not-just-from-the-command-line)
+  - [Optional: Redis, Prepped for a Later Assignment](#a3-optional-redis-prepped-for-a-later-assignment)
+
 ---
 
 
@@ -333,3 +344,258 @@ identical to Assignment 1 — only the storage implementation changed.
   starts with a clean, freshly seeded database.
 
 ⬆ [Back to Table of Contents](#-table-of-contents)
+
+---
+
+---
+# Assignment 3 – Task CRUD API (FastAPI + Postgres in Docker)
+ 
+## A3 What this assignment is actually about
+ 
+In Assignment 2, tasks were saved in a SQLite file (`tasks.db`) sitting
+directly on this computer. That works fine for one person testing things
+locally, but it doesn't work once you need multiple people, multiple
+servers, or a proper production setup — a single file on one machine isn't
+built for that.
+ 
+This assignment moves storage to **PostgreSQL** (often shortened to
+"Postgres"), a real client-server database — the kind actual companies run
+in production. Instead of installing Postgres directly on this machine,
+it runs inside **Docker**, a tool that packages software (and everything
+it needs to run) into an isolated container, so it behaves the same
+regardless of whose computer it's running on.
+ 
+The bigger goal here wasn't just "add a database" — it was to test a claim
+made back in Assignment 2's README: that swapping the storage system
+underneath the app should be possible without rewriting the app itself.
+That turned out to be *mostly* true, with an honest asterisk explained
+below.
+ 
+## A3 The building blocks, explained plainly
+ 
+**Docker** — software that runs applications inside lightweight, isolated
+"containers." A container behaves like a mini computer with only the one
+program installed, so it starts the same way every time, on any machine
+that has Docker installed.
+ 
+**A Docker volume** — normally, anything saved inside a container
+disappears the moment that container is deleted. A volume is a
+workaround: a storage location that lives *outside* the container, which
+the container can read and write to. Delete the container, keep the
+volume, and the data survives.
+ 
+**`.env` file** — a small text file holding configuration values (in this
+case, the database connection details) that shouldn't be shared publicly
+or committed to GitHub, since anyone with them could connect to the
+database. `.env.example` is a safe, public stand-in with the same
+structure but no real secrets, so anyone cloning this project knows what
+values they need to fill in.
+ 
+**`docker-compose.yml`** — a single file that describes multiple
+containers that should run together (here: the app, and the database) and
+how they're wired up to each other. Instead of starting each one by hand,
+one command (`docker compose up`) reads this file and starts everything in
+the right order.
+ 
+**Repository pattern** — a way of organizing code so that "how data is
+saved" lives in exactly one place, separate from the rest of the
+application. If that one place is written consistently, swapping *how*
+data is stored (SQLite → Postgres, or later, Postgres → something else)
+shouldn't require touching the rest of the app — the routes, the request
+handling, the business logic all stay the same, because they were never
+talking to the database directly in the first place. That's the theory
+this assignment tested.
+ 
+## A3 What actually happened, step by step
+ 
+**1. Postgres, running in Docker, with a volume attached.**
+Started Postgres as a container with a named volume attached
+(`a2_pgdata`), so its data lives outside the container itself. Confirmed
+it was working *before* writing any application code, by connecting
+directly with a command-line tool (`psql`) and checking for zero errors.
+ 
+**2. Connection details moved into `.env`.**
+The real database connection string — including username and password —
+lives in `.env`, which is excluded from version control via `.gitignore`.
+A safe template, `.env.example`, is committed instead, so anyone setting
+this project up locally knows exactly what to create.
+ 
+**3. The database-talking code was rewritten for Postgres.**
+`database_config.py` is the one file responsible for connecting to the
+database and setting up its table. It was rewritten to use Postgres's
+Python driver (`psycopg2`) instead of Python's built-in SQLite support,
+and to create the table using Postgres's SQL syntax instead of SQLite's.
+ 
+**4. Found out the "one file changes" claim wasn't quite true — and fixed it honestly instead of hiding it.**
+This was the real lesson of the assignment. It turned out the routes file
+(`main.py`) had raw database queries written directly inside it, using
+SQLite-specific syntax. Postgres doesn't understand that syntax, so a few
+small, mechanical, easy-to-explain edits were needed there too:
+ 
+- SQLite uses `?` as a placeholder for values in a query; Postgres uses
+  `%s`. Every query needed that swapped.
+- SQLite has a shortcut, `cursor.lastrowid`, for getting the ID of a row
+  that was just created. Postgres has no such shortcut — instead, the
+  `INSERT` command itself was changed to say `RETURNING id`, which makes
+  the database hand the new ID straight back, the same way it would for a
+  normal search query.
+- SQLite quietly lets you run a query and read its result in a single
+  chained line of code. Postgres's driver requires two explicit steps:
+  first "prepare to run a query" (`cursor = conn.cursor()`), then "run it"
+  and "read the result" as separate lines.
+None of this changed what any part of the API actually *does* — the same
+web addresses, the same request/response formats, the same success/error
+codes as before. What changed was purely the mechanics of *how* the code
+talks to the database. That's a smaller, more precise claim than "nothing
+changed at all," and it's the accurate one.
+ 
+**5. Packaged the app itself into a container, and wrote `docker-compose.yml`.**
+A `Dockerfile` describes how to build the app into its own container image
+(what to install, what code to include, how to start it). Then
+`docker-compose.yml` ties the app container and the database container
+together, and makes sure the app doesn't try to connect to the database
+before the database is actually ready to accept connections — avoiding a
+timing issue that would otherwise cause the app to crash on its very first
+startup.
+ 
+**6. Proved the data actually survives a restart — and hit a real, instructive mistake along the way.**
+Created a task through the API, then deleted the database container
+entirely (not just stopped it — fully removed it) and recreated it,
+attached to the same volume. Every task, including the newly created one,
+was still there — solid proof the data genuinely lives in the volume, not
+inside the disposable container.
+ 
+Then, running everything through `docker compose up` for the first time,
+that same test task went missing. This wasn't a bug in the application —
+Docker Compose automatically renames volumes behind the scenes, prefixing
+them with the project's folder name, unless told not to. It had quietly
+created a brand-new, empty volume instead of reusing the existing one from
+manual testing. Confirmed this with `docker volume ls` (which listed three
+separate Postgres volumes sitting on disk), then fixed it by explicitly
+pinning the volume's name inside `docker-compose.yml`. After that fix, a
+full stack shutdown and restart (`docker compose down` then
+`docker compose up`) kept all the data intact.
+ 
+## A3 Running everything, one command
+ 
+```bash
+docker compose up --build
+```
+ 
+This single command reads `docker-compose.yml`, builds and starts the app,
+starts Postgres, waits for Postgres to actually be ready before letting
+the app connect to it, and serves the API at `http://localhost:8000`
+(interactive docs at `http://localhost:8000/docs`).
+ 
+No manual setup of a local `.env` file is required to run it this way —
+the database connection details are already defined inside
+`docker-compose.yml` for the containers to use directly. `.env` is only
+needed if running the app outside Docker, directly with `uvicorn`.
+ 
+## A3 What changed, and what genuinely didn't
+ 
+| File | Changed? | Why |
+|---|---|---|
+| `database_config.py` | Yes, rewritten | New database driver, new connection setup, new table syntax |
+| `main.py` | Yes, small mechanical edits | Query placeholder syntax, how a new row's ID is retrieved, an explicit two-step query pattern instead of a SQLite-only shortcut |
+| The actual API — web addresses, request/response formats, success/error codes | No, unchanged | The whole point of separating "how data is stored" from "how the app behaves" |
+ 
+## A3 Proving persistence — the full checklist
+ 
+1. Created a task through the API (`POST /tasks`).
+2. Confirmed it two independent ways: through the API itself (`GET
+   /tasks`), and by querying the database directly with a command-line
+   tool, bypassing the app entirely.
+3. Fully deleted the database container (not just stopped it) and
+   recreated it, attached to the same volume — all data, including the
+   new task, was still there.
+4. Restarted the app itself and confirmed again through the API.
+5. Shut down and restarted the *entire* stack with `docker compose down`
+   followed by `docker compose up` — the real one-command workflow this
+   task is about — and confirmed, one final time, that every task was
+   still there.
+## A3 Confirming it visually, not just from the command line
+ 
+Everything above can also be checked without typing a single command, using
+the same Swagger UI page from Assignments 1 and 2, at
+`http://localhost:8000/docs`.
+ 
+The key habit here: Swagger doesn't auto-update on its own. After creating
+a task, restarting the container, or restarting the whole stack, the
+**page has to be refreshed** (or `GET /tasks` re-run inside Swagger via
+"Try it out" → "Execute") to actually pull fresh data from the database. A
+page left open from before a restart will still be showing old, cached
+results on screen — that's the browser, not the database, and it's easy to
+mistake for a problem that isn't really there.
+ 
+The steps, done through Swagger instead of the terminal:
+ 
+1. Open `http://localhost:8000/docs`, expand `POST /tasks`, click **Try it
+   out**, and create a task with a distinctive title (e.g. "Swagger check").
+2. Expand `GET /tasks`, click **Try it out** → **Execute**. Confirm the new
+   task appears in the response.
+3. Restart the stack (`docker compose down` then `docker compose up`).
+4. Go back to the browser tab, and **refresh the whole page** (not just
+   re-open the same response) before running `GET /tasks` again — this
+   guarantees a brand-new request is being made, not a stale cached view.
+5. Run `GET /tasks` again. The "Swagger check" task should still be listed,
+   confirming persistence the same way the terminal checks did — just
+   visually, which is a useful sanity check for anyone less comfortable
+   reading raw JSON from `curl`.
+
+
+⬆ [Back to Table of Contents](#-table-of-contents)
+
+---
+
+## A3 Optional: Redis, prepped for a later assignment
+ 
+Since a future assignment is expected to need caching, sessions, or a job
+queue, **Redis was added to the stack now, ahead of time** — but it isn't
+used by the application yet. Nothing in `main.py` or `database_config.py`
+talks to it. It's simply running, healthy, and ready to be wired in
+whenever that need actually shows up.
+ 
+**What Redis is, in plain terms:** where Postgres is built to durably
+store structured data long-term (tasks, users, orders — things that must
+never disappear), Redis is an in-memory data store, built for speed rather
+than heavy-duty permanence. It's commonly used for things like: caching
+data that's expensive to look up repeatedly, storing short-lived session
+or login tokens, or acting as the backing store for background job queues.
+Which of those it ends up being used for here depends on what the next
+assignment actually asks for.
+ 
+**What was added:**
+ 
+- A `redis` service in `docker-compose.yml`, using the official `redis:7`
+  image, with its own named, persistent volume (`a2_redisdata`) and a
+  healthcheck — the same pattern already used for Postgres, so the app
+  won't try to connect before Redis is actually ready.
+- `REDIS_URL` added to both `.env` (`redis://localhost:6379/0`, for
+  running the app outside Docker) and `.env.example` (`redis://redis:6379/0`,
+  matching the internal service name used inside Docker Compose) — the
+  same `localhost` vs. service-name distinction that already applies to
+  `DATABASE_URL`.
+- `REDIS_URL` passed through to the `app` service in `docker-compose.yml`,
+  and `redis` added under `depends_on`, so the connection detail and the
+  startup ordering are both already in place.
+**How it was confirmed to actually be working**, even with nothing using
+it yet:
+ 
+```bash
+docker exec -it backend-ai-engineering-intern-project-redis-1 redis-cli ping
+```
+ 
+Returned `PONG` — confirming Redis itself is running and reachable inside
+the Docker network, independent of whether the app has any code that talks
+to it yet.
+ 
+**What's intentionally left for later:** an actual Python Redis client
+(e.g. `redis-py`) is not yet installed or imported anywhere, and no route
+in `main.py` reads from or writes to Redis. That's deliberate — adding the
+infrastructure now, without inventing a use for it before there's a real
+requirement to build around, keeps this assignment's actual scope honest.
+ 
+⬆ [Back to Table of Contents](#-table-of-contents)
+
+---

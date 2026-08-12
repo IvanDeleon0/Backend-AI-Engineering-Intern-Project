@@ -32,7 +32,9 @@ def health_status():
 def display_tasks():
     """Returns all tasks from the database."""
     conn = get_connection()
-    rows = conn.execute("SELECT * FROM tasks").fetchall()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks")
+    rows = cursor.fetchall()
     conn.close()
     return [ {"id": row["id"], "title": row["title"], "done": bool(row["done"])} for row in rows ]
 
@@ -41,7 +43,9 @@ def display_tasks():
 def get_task_by_ID(id: int):
     """Returns a single task by its ID, or 404 if it doesn't exist."""
     conn = get_connection()
-    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (id,)).fetchone()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE id = %s", (id,))
+    row = cursor.fetchone()
     conn.close()
   
     if row is None:
@@ -56,12 +60,14 @@ def add_task(task: Task):
         raise HTTPException(status_code=400, detail="Task title cannot be empty")
 
     conn = get_connection()
-    cursor = conn.execute(
-        "INSERT INTO tasks (title, done) VALUES (?, ?)",
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO tasks (title, done) VALUES (%s, %s) RETURNING id",
         (task.title, task.done)
     )
+    row = cursor.fetchone()
+    new_id = row["id"]    ## cursor.lastrowid  <- Sql Version, SQLite tells us the id it just assigned
     conn.commit()
-    new_id = cursor.lastrowid  # SQLite tells us the id it just assigned
     conn.close()
 
     return {"id": new_id, "title": task.title, "done": task.done}
@@ -74,13 +80,15 @@ def update_task(id: int, task: Task):
         raise HTTPException(status_code=400, detail="Task title is invalid or empty")
 
     conn = get_connection()
-    existing = conn.execute("SELECT * FROM tasks WHERE id = ?", (id,)).fetchone()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE id = %s", (id,))
+    existing = cursor.fetchone()
     if existing is None:
         conn.close()
         raise HTTPException(status_code=404, detail={"error": f"Task {id} not found"})
 
-    conn.execute(
-        "UPDATE tasks SET title = ?, done = ? WHERE id = ?",
+    cursor.execute(
+        "UPDATE tasks SET title = %s, done = %s WHERE id = %s",
         (task.title, task.done, id)
     )
     conn.commit()
@@ -93,11 +101,13 @@ def update_task(id: int, task: Task):
 def delete_task(id: int):
     """Deletes a task by its ID."""
     conn = get_connection()
-    existing = conn.execute("SELECT * FROM tasks WHERE id = ?", (id,)).fetchone()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE id = %s", (id,))
+    existing = cursor.fetchone()
     if existing is None:
         conn.close()
         raise HTTPException(status_code=404, detail={"error": f"Task {id} not found"})
 
-    conn.execute("DELETE FROM tasks WHERE id = ?", (id,))
+    cursor.execute("DELETE FROM tasks WHERE id = %s", (id,))
     conn.commit()
     conn.close()

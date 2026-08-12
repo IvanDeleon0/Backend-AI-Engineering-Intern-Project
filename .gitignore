@@ -1,0 +1,17 @@
+# Comments start with a hash
+.env
+.env.example
+# Ignore a whole folder
+__pycache__/
+venv/
+
+# Ignore by file extension (wildcard)
+*.pyc
+*.log
+
+# Ignore a specific file
+config/secrets.json
+tasks.db
+
+__pycache__/database_config.cpython-314.pyc
+__pycache__/main.cpython-314.pyc
