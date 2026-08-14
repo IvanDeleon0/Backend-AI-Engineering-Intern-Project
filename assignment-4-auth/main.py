@@ -9,13 +9,17 @@ from fastapi import Header, Depends, Response
 from database_configA4 import get_supabase, get_supabase_admin
 from pydantic import BaseModel
 from supabase_auth.errors import AuthApiError
+from fastapi.security import HTTPBearer
+
 
 class AuthRequest(BaseModel):
     email: str
     password: str
 app = FastAPI(title="Auth API")
+security = HTTPBearer()
 
-def get_current_user(authorization: str = Header(None)):
+def get_current_user(authorization: str = Header(None),
+                     credentials = Depends(security)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Access token required")
 
