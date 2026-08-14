@@ -46,7 +46,9 @@ Since all project files are kept in a shared workspace, this README serves as th
   - [Proving Persistence — the Full Checklist](#a3-proving-persistence--the-full-checklist)
   - [Confirming It Visually, Not Just From the Command Line](#a3-confirming-it-visually-not-just-from-the-command-line)
   - [Optional: Redis, Prepped for a Later Assignment](#a3-optional-redis-prepped-for-a-later-assignment)
-
+ 
+## Assignment 4
+- [New: Auth Login & Protect](#-new-auth-login--protect)
 ---
 
 
@@ -603,3 +605,34 @@ requirement to build around, keeps this assignment's actual scope honest.
 ⬆ [Back to Table of Contents](#-table-of-contents)
 
 ---
+
+## Assignment 4
+
+# 🔐 New: Auth Login & Protect
+ 
+The task API from A1–A3 didn't ask who you were. This one does.
+ 
+**Assignment 4** adds a real login system on top of the same backend
+stack — signup, login, logout, and routes that only open up for a valid,
+verified user. No passwords touched or tokens signed by hand: Supabase
+plays identity provider, this backend plays gatekeeper, and the two only
+ever talk through a signed JWT.
+ 
+```
+POST /auth/signup        →  create an account
+POST /auth/login         →  get back an access + refresh token
+GET  /protected/profile  →  only answers if that token checks out
+POST /auth/logout        →  and it stops checking out the moment you do
+```
+ 
+One line sums up the interesting part: the "obvious" way to log a user out
+— `sign_out()` — doesn't actually revoke the access token, it only revokes
+the refresh token. Getting logout to behave the way people *expect* it to
+took switching to Supabase's Admin API, which turned out to be the more
+correct choice all along.
+ 
+📂 Full write-up — the trust model, the `get_current_user` dependency, and
+every bug that led to the final design — lives in
+[`assignment-4-auth/README.md`](./assignment-4-auth/README.md).
+ 
+⬆ [Back to Table of Contents](#-table-of-contents)
