@@ -210,4 +210,4 @@ padlock on the open routes. Clicking **Authorize** and pasting a real access
 token (no `Bearer` prefix — Swagger adds that automatically) lets you test
 protected routes directly from the browser.
 
-![Swagger UI screenshot](./assignment-4-auth/swagger-screenshot-A4.png)
+![Swagger UI screenshot](swagger-screenshot-A4.png)
