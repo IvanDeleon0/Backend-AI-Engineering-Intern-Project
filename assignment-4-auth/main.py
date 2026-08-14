@@ -5,8 +5,8 @@ using Supabase as the Identity Provider (IdP).
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-from fastapi import Header
-from database_configA4 import get_supabase
+from fastapi import Header, Depends, Response
+from database_configA4 import get_supabase, get_supabase_admin
 from pydantic import BaseModel
 from supabase_auth.errors import AuthApiError
 
@@ -15,6 +15,21 @@ class AuthRequest(BaseModel):
     password: str
 app = FastAPI(title="Auth API")
 
+def get_current_user(authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Access token required")
+
+    token = authorization.removeprefix("Bearer ")
+    #return {"message": "Token received", "token_preview": token[:10] + "..."}
+    supabase = get_supabase()
+
+    try:
+        response = supabase.auth.get_user(token)
+    except AuthApiError as e:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    return response.user
+    
 
 @app.on_event("startup")
 def startup_event():
@@ -61,23 +76,22 @@ def public_info():
     return {"message": "Welcome stranger! This info is public."}
 
 @app.get("/protected/profile")
-def protected_profile(authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Access token required")
-
-    token = authorization.removeprefix("Bearer ")
-    #return {"message": "Token received", "token_preview": token[:10] + "..."}
-    supabase = get_supabase()
-
-    try:
-        response = supabase.auth.get_user(token)
-    except AuthApiError as e:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-    user = response.user
+def get_protected_profile(user=Depends(get_current_user)):
     return{
         "id": user.id,
         "email": user.email,
         "created_at": user.created_at.isoformat(),
     }
 
+@app.post("/auth/logout")
+def logout(authorization: str = Header(None), user = Depends(get_current_user)):
+    token = authorization.removeprefix("Bearer ")
+
+    supabase_admin = get_supabase_admin()
+    supabase_admin.auth.admin.sign_out(token)
+
+    return Response(status_code=204)
+
+@app.get("/protected/dashboard")
+def protected_dashboard(user = Depends(get_current_user)):
+    return {"message": f"Welcome to your dashboard, {user.email}"}
