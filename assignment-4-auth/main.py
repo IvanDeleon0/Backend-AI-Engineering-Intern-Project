@@ -66,4 +66,18 @@ def protected_profile(authorization: str = Header(None)):
         raise HTTPException(status_code=401, detail="Access token required")
 
     token = authorization.removeprefix("Bearer ")
-    return {"message": "Token received", "token_preview": token[:10] + "..."}
+    #return {"message": "Token received", "token_preview": token[:10] + "..."}
+    supabase = get_supabase()
+
+    try:
+        response = supabase.auth.get_user(token)
+    except AuthApiError as e:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = response.user
+    return{
+        "id": user.id,
+        "email": user.email,
+        "created_at": user.created_at.isoformat(),
+    }
+
